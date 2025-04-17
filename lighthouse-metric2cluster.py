@@ -5,9 +5,9 @@ from google.colab import files
 # Upload CSV file
 uploaded = files.upload()
 
-# Load with semicolon delimiter
+# Load the uploaded CSV file
 filename = list(uploaded.keys())[0]
-df = pd.read_csv(filename, sep=";")
+df = pd.read_csv(filename, sep=';', encoding='utf-8')
 
 # Convert comma decimal to dot and convert to float where needed
 def convert_column(col):
@@ -20,24 +20,45 @@ for col in df.columns:
     if col != "Address":
         df[col] = convert_column(col)
 
-# Function to create cluster labels based on quantiles
-def cluster_column(column):
-    q1 = column.quantile(0.33)
-    q2 = column.quantile(0.66)
-    def label(val):
-        if val <= q1:
+# Define thresholds for each metric
+thresholds = {
+    'Largest Contentful Paint Time (ms)': {'good': 2500, 'poor': 4000},
+    'Max Potential First Input Delay (ms)': {'good': 100, 'poor': 300},
+    'Cumulative Layout Shift': {'good': 0.1, 'poor': 0.25},
+    'First Contentful Paint Time (ms)': {'good': 1800, 'poor': 3000},
+    'Speed Index Time (ms)': {'good': 3400, 'poor': 5800},
+    'Time to Interactive (ms)': {'good': 3800, 'poor': 7300},
+    'Total Blocking Time (ms)': {'good': 200, 'poor': 600},
+    'Time to First Byte (ms)': {'good': 800, 'poor': 1800}
+}
+
+# Function to categorize each metric based on thresholds
+def categorize(value, metric):
+    if pd.isnull(value):
+        return "No Data"
+    if metric not in thresholds:
+        return "No Threshold"
+    good = thresholds[metric]['good']
+    poor = thresholds[metric]['poor']
+    if metric == 'Cumulative Layout Shift':
+        if value <= good:
             return "Good"
-        elif val <= q2:
+        elif value <= poor:
             return "Needs Improvement"
         else:
             return "Poor"
-    return column.apply(label)
+    else:
+        if value <= good:
+            return "Good"
+        elif value <= poor:
+            return "Needs Improvement"
+        else:
+            return "Poor"
 
-# Create cluster columns
-for col in df.columns:
-    if col != "Address":
-        cluster_col_name = f"{col} cluster"
-        df[cluster_col_name] = cluster_column(df[col])
+# Apply categorization to each metric
+for metric in thresholds.keys():
+    cluster_col = f"{metric} Cluster"
+    df[cluster_col] = df[metric].apply(lambda x: categorize(x, metric))
 
 # Display the resulting DataFrame
 df.head()
